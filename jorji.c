@@ -2,46 +2,46 @@
 
 #define BUFF_LEN 30 
 
-#define ALARMLED  PIN_B2   //DORJI MODUL ile haberlesilemiyorsa bu led yanar ve yazilim durur. Hatayi tespit edip giderip, tekrar enerji verilmeli.
-#define BUTON     PIN_B4   //BUTON yazdigimiz zaman aslinda PIN C3'u kastediyoruz demek.
-#define LED       PIN_B5   //LED yazdigimiz zaman aslinda PIN C4u kastediyoruz.
-#define SETA      PIN_C4   //Dorji nin SETA portuna bagli pinimizi kastediyoruz.
-#define SETB      PIN_C5   //Dorji nin SETB portuna bagli pinimizi kastediyoruz.
-                           //SETA ve SETB LOW ise TX-RX haberlesmesi. HIGH ise config ayarlama
+#define ALARMLED  PIN_B2   //If communication error.
+#define BUTON     PIN_B4   //
+#define LED       PIN_B5   //
+#define SETA      PIN_C4   //Dorji SETA port
+#define SETB      PIN_C5   //Dorji SETB port
+                           //if SETA and SETB is LOW, TX-RX MODE. if HIGH, CONFIG MODE
 
-#define ON      0          //OFF yazdigimiz zaman 0 anlasilsin.
-#define OFF     1          //ON yazdigimiz zaman 1 anlasilsin.
+#define ON      0          
+#define OFF     1          
 
-char gelen[BUFF_LEN];      //char tipinde veri almak icin 30 karakterlik bir alan rezerve ediyoruz.
-int1 mesaj_geldi=FALSE;    //mesaj geldiginde tum yazilim mesaj oldugunu algilasin.
-char dorji_var = FALSE;    //Dorji modül ve cevap veriyorsa degeri TRUE olur.
-int1 komut_modu = FALSE;   //Dorjiden gelen datalari dogru algilamak icin komut modu degiskeni kullandik. Normalde FALSE
+char gelen[BUFF_LEN];      //input buffer
+int1 mesaj_geldi=FALSE;    //message received
+char dorji_var = FALSE;    //If Dorji present or not
+int1 komut_modu = FALSE;   
 
-int ctr=0;                 //gelen byte sayaci
+int ctr=0;                 //received byte counter
 
-//DORJI CONFIG - Bu bilgiler datasheet sayfa8'den bakilarak belirlenmeli. Simdilik default degerleri yazdik.
-int32 drj_frq = 433920;    //dorji calisma frekansi. 433.92MHz default
-int8  drj_mod = 3;         //dorji modulasyonu. 0,1,2,3,4,5 = 1,2,5,10,20,40 kbps (DRFSK)
-int8  drj_pow = 7;         //dorji power. 0'dan 7ye kadar 3dbm artirir. 7 = 10dBm'dir.
+//DORJI CONFIG - For info, datasheet page 8. Now default values used.
+int32 drj_frq = 433920;    //dorji working frequency. 433.92MHz default
+int8  drj_mod = 3;         //dorji modulation. 0,1,2,3,4,5 = 1,2,5,10,20,40 kbps (DRFSK)
+int8  drj_pow = 7;         //dorji power. 0 to 7. 3dbm increease. 7 = 10dBm.
 int8  drj_rate = 3;        //dorji uart data rate. 0,1,2,3,4,5,6 = 1200, 2400, 4800, 9600, 19200, 38400, 57600
 int8  drj_par = 0;         //dorji parity. 0,1,2 = No, Even, Odd
-int8  drj_wakeup = 5;      //dorji wake up suresi. 1 saniye.
+int8  drj_wakeup = 5;      //dorji wakeup duration. 1 second.
 
-const char message[] = "BUTON BASILDI" ;
-int8  dorji_cfg[7] = {0xFF, 0x56, 0xAE, 0x35, 0xA9, 0x55, 0xF0};  //Dorji'den config okuma komutu. Datasheet sayfa8.
-int8  dorji_cfgw[7] = {0xFF, 0x56, 0xAE, 0x35, 0xA9, 0x55, 0x90}; //Droji config yazmada önce yollanacak kısım.
+const char message[] = "BUTTON PRESSED" ;
+int8  dorji_cfg[7] = {0xFF, 0x56, 0xAE, 0x35, 0xA9, 0x55, 0xF0};  //Read Config from Dorji
+int8  dorji_cfgw[7] = {0xFF, 0x56, 0xAE, 0x35, 0xA9, 0x55, 0x90}; //Send first array before writing config.
 
-//------------------Seri veri alma interrupti ------------------------------------------------- 
+//------------------Serial interrupt ------------------------------------------------- 
 #INT_RDA 
 void  RDA_isr(void) 
 { 
      
     int ch; 
-    ch=getc(1);             //Seri kanaldan gelen 1 bytelik veriyi alalim.
+    ch=getc(1);             
     
     if (komut_modu == FALSE)
     {
-       if (ch=='\n')          //gelen karakter LINEFEED degilse buffer'akaydedicez. LINEFEED ise, bufferdaki ilgili yeri 0 yapicaz ve mesaj geldi diycez
+       if (ch=='\n')          
        { 
            gelen[ctr]='\0'; 
            ctr=0; 
@@ -49,14 +49,14 @@ void  RDA_isr(void)
            return; 
        } 
            
-       gelen[ctr++]=ch;       //geleni buffera yaziyyoruz
+       gelen[ctr++]=ch;       
        if (ctr==BUFF_LEN) 
-         ctr--;               //buffer tasarsa diye bir önlem
+         ctr--;               
     }
     else
     {
-         gelen[ctr++]=ch;     //gelen komut cevabını buffera yaziyoruz.
-         if (ctr==11)         //komuta tam olarakcevap gelmisse bitiriyoruz alimi.
+         gelen[ctr++]=ch;     
+         if (ctr==11)         
          {
             komut_modu = FALSE;
             ctr=0; 
@@ -66,41 +66,41 @@ void  RDA_isr(void)
 
 
 
-void dorji_config()                 //Dorji modülü config moduna gecirir. Henuz gercekte bagli mi degil mi bilemiyoruz tabiki.
+void dorji_config()                 //Enter command mode.
 {
-   output_high(SETA);               //Dorji modülü config moduna gecir.
+   output_high(SETA);               //
    output_high(SETB);
    
-   delay_ms(500);                   //Biraz bekle Dorji toparlansin.
+   delay_ms(500);                   //wait little
 }
 
 void dorji_txrx()
 {
-   output_low(SETA);               //Dorji modülü tx-rx moduna gecir.
+   output_low(SETA);               //Enter rx-tx mode
    output_low(SETB);
    
-   delay_ms(500);                   //Biraz bekle Dorji toparlansin.
+   delay_ms(500);                   //wait
 
 }
 
-void dorji_kontrol()                //Dorji modül var mi yok mu ya da cevap veriyor mu bakilir.
+void dorji_kontrol()                //check dorji if it is present or not.
 {
    int8  txlen = 0;
    int8  rxlen = BUFF_LEN;
-   int8  tout = 100;                //100 defa 10milisaniye bekleme.
+   int8  tout = 100;                
    
-   txlen = 7;     //dorji_cfg komutunun kac byte oldugu.
+   txlen = 7;     //dorji_cfg command byte 
    
-   komut_modu = TRUE;         //komut moduna gectigimizi bildirelim.
+   komut_modu = TRUE;         //we are command mode
    while(rxlen)
    {
-      gelen[rxlen--] = 0x00;  //gelen buffer alanini temizleyelim.
+      gelen[rxlen--] = 0x00;  
    }
    
-   ctr = 0; //gelen byte buffer sayacini 0layalim.
+   ctr = 0; 
    while(txlen)
    {
-      fprintf(PORT1, "%i", dorji_cfg[--txlen]); //dorji komutunu gonder.
+      fprintf(PORT1, "%i", dorji_cfg[--txlen]); //send dorji command
    }
    
    
@@ -142,7 +142,7 @@ void dorji_config_yaz()
       fprintf(PORT1, "%i", dorji_cfgw[--txlen]); //dorji komutunu gonder.
    }
 
-   //geri kalan kismi gönderilecek. Yani asıl konfigürasyon
+   //geri kalan kismi gÃ¶nderilecek. Yani asÄ±l konfigÃ¼rasyon
    
    fprintf(PORT1, "%i", (drj_frq >> 16)&0xff);  //frekans 24bit sayidir. yani 3 byte. once en ust anlamli bytei gonderecegiz.
    fprintf(PORT1, "%i", (drj_frq >> 8)&0xff);   //sonra 2.byte
@@ -161,16 +161,16 @@ void dorji_config_yaz()
 
 void main()
 {
-   int buton_eski_durum = 0;     //Butonun eski durumunu ve yeni durumunu sakliycaz ki, butona ilk basişta mesaj gönderelim. Yoksa basili tutuldugu surece yollariz.
+   int buton_eski_durum = 0;     //Butonun eski durumunu ve yeni durumunu sakliycaz ki, butona ilk basiÅŸta mesaj gÃ¶nderelim. Yoksa basili tutuldugu surece yollariz.
    int buton_yeni_durum = 0;
-   int led_durum = 0;            //Led durumunu, karsidaki JORJIN'den gelen buton bilgisine göre belirliycez. Karsidan her buton bilgisi geldiginde,
-                                 //ledimiz sönükse yakicaz, yaniyorsa söndürücez.
+   int led_durum = 0;            //Led durumunu, karsidaki JORJIN'den gelen buton bilgisine gÃ¶re belirliycez. Karsidan her buton bilgisi geldiginde,
+                                 //ledimiz sÃ¶nÃ¼kse yakicaz, yaniyorsa sÃ¶ndÃ¼rÃ¼cez.
    int8 i = 0, j;
                                  
                                  
    setup_adc(ADC_OFF); 
   
-   delay_ms(500);                //Kalkista bekleyelim. Modüller voltaji alip kendine gelsin. 500 milisaniye yani yarım saniye.
+   delay_ms(500);                //Kalkista bekleyelim. ModÃ¼ller voltaji alip kendine gelsin. 500 milisaniye yani yarÄ±m saniye.
    
    set_tris_b(0x10);
    output_high(ALARMLED);        //Ledi sondurelim.
@@ -192,7 +192,7 @@ void main()
   
    buton_eski_durum = TRUE;
    
-   while(TRUE)                         //Bu döngünün icindekiler sonsuza kadar tekrarlansin.
+   while(TRUE)                         //Bu dÃ¶ngÃ¼nÃ¼n icindekiler sonsuza kadar tekrarlansin.
    { 
        
          buton_yeni_durum = input(BUTON);   //buton okuyalim. Port C3'e bagli butonu okuyalim.
